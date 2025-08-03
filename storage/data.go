@@ -2,10 +2,14 @@ package storage
 
 import (
 	"encoding/json"
+	"sync"
 )
 
 type KeyValueStoreAccess interface {
 	Get(key string) interface{}
+	GetOrDefault(key string, defaultVal interface{}) interface{}
+	Exists(key string) bool
+
 	GetBytes(key string) []byte
 	GetString(key string) string
 	GetStrings(key string) []string
@@ -17,13 +21,16 @@ type KeyValueStoreAccess interface {
 	GetInt64(key string) int64
 	GetFloat32(key string) float32
 	GetFloat64(key string) float64
+
+
 	Set(key string, val interface{})
-	Flush()
 	Delete(key string)
+	Flush()
 }
 
 type Storage struct {
 	data map[string]interface{}
+	mu   sync.RWMutex
 }
 
 func New() KeyValueStoreAccess {
@@ -31,77 +38,151 @@ func New() KeyValueStoreAccess {
 }
 
 func NewFromJsonString(jsonString string) KeyValueStoreAccess {
-	valueStore := New()
+	store := New()
 
 	var jsonKeyValues map[string]interface{}
-
 	if err := json.Unmarshal([]byte(jsonString), &jsonKeyValues); err != nil {
 		panic(err)
 	}
 
 	for key, value := range jsonKeyValues {
-		valueStore.Set(key, value)
+		store.Set(key, value)
 	}
 
-	return valueStore
+	return store
 }
 
 func (s *Storage) Get(key string) interface{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.data[key]
 }
 
+func (s *Storage) GetOrDefault(key string, defaultVal interface{}) interface{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if val, ok := s.data[key]; ok {
+		return val
+	}
+	return defaultVal
+}
+
+func (s *Storage) Exists(key string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, exists := s.data[key]
+	return exists
+}
+
 func (s *Storage) GetBytes(key string) []byte {
-	return s.data[key].([]byte)
+	if val, ok := s.Get(key).([]byte); ok {
+		return val
+	}
+	return nil
 }
 
 func (s *Storage) GetString(key string) string {
-	return s.data[key].(string)
+	if val, ok := s.Get(key).(string); ok {
+		return val
+	}
+	return ""
 }
 
 func (s *Storage) GetStrings(key string) []string {
-	return s.data[key].([]string)
+	if val, ok := s.Get(key).([]string); ok {
+		return val
+	}
+	return nil
 }
 
 func (s *Storage) GetBool(key string) bool {
-	return s.data[key].(bool)
+	if val, ok := s.Get(key).(bool); ok {
+		return val
+	}
+	return false
 }
 
 func (s *Storage) GetInt(key string) int {
-	return s.data[key].(int)
+	switch v := s.Get(key).(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	}
+	return 0
 }
 
 func (s *Storage) GetInt8(key string) int8 {
-	return s.data[key].(int8)
+	switch v := s.Get(key).(type) {
+	case int8:
+		return v
+	case float64:
+		return int8(v)
+	}
+	return 0
 }
 
 func (s *Storage) GetInt16(key string) int16 {
-	return s.data[key].(int16)
+	switch v := s.Get(key).(type) {
+	case int16:
+		return v
+	case float64:
+		return int16(v)
+	}
+	return 0
 }
 
 func (s *Storage) GetInt32(key string) int32 {
-	return s.data[key].(int32)
+	switch v := s.Get(key).(type) {
+	case int32:
+		return v
+	case float64:
+		return int32(v)
+	}
+	return 0
 }
 
 func (s *Storage) GetInt64(key string) int64 {
-	return s.data[key].(int64)
+	switch v := s.Get(key).(type) {
+	case int64:
+		return v
+	case float64:
+		return int64(v)
+	}
+	return 0
 }
 
 func (s *Storage) GetFloat32(key string) float32 {
-	return s.data[key].(float32)
+	switch v := s.Get(key).(type) {
+	case float32:
+		return v
+	case float64:
+		return float32(v)
+	}
+	return 0
 }
 
 func (s *Storage) GetFloat64(key string) float64 {
-	return s.data[key].(float64)
+	if val, ok := s.Get(key).(float64); ok {
+		return val
+	}
+	return 0
 }
 
 func (s *Storage) Set(key string, val interface{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.data[key] = val
 }
 
-func (s *Storage) Flush() {
-	s.data = make(map[string]interface{})
+func (s *Storage) Delete(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.data, key)
 }
 
-func (s *Storage) Delete(key string) {
-	delete(s.data, key)
+func (s *Storage) Flush() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data = make(map[string]interface{})
 }

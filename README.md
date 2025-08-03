@@ -13,6 +13,9 @@ The following methods are available:
 
 ```go
 Get(key string) interface{}
+GetOrDefault(key string, defaultVal interface{}) interface{}
+Exists(key string) bool
+
 GetBytes(key string) []byte
 GetString(key string) string
 GetStrings(key string) []string
@@ -24,9 +27,10 @@ GetInt32(key string) int32
 GetInt64(key string) int64
 GetFloat32(key string) float32
 GetFloat64(key string) float64
+
 Set(key string, val interface{})
-Flush()
 Delete(key string)
+Flush()
 ```
 
 ## Usage
